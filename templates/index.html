@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DL Image Denoising & Classification</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.4rem;
+    }
+    header p {
+      color: #bbb;
+      font-size: 0.95rem;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 700px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      margin-bottom: 2rem;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+      padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      background: rgba(255,255,255,0.05);
+      color: #e0e0e0;
+    }
+    .tab-btn.active {
+      color: #a18cd1;
+      background: rgba(161,140,209,0.1);
+      border: 1px solid rgba(161,140,209,0.3);
+    }
+
+    /* ── Upload Section ── */
+    .upload-area {
+      display: none; /* hidden by default, shown via JS */
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    .upload-area.active {
+      display: flex;
+    }
+    .upload-area label {
+      font-size: 1rem;
+      color: #ccc;
+      align-self: flex-start;
+      margin-bottom: -0.5rem;
+    }
+    .upload-desc {
+        color: #888;
+        font-size: 0.85rem;
+        align-self: flex-start;
+        margin-bottom: 0.5rem;
+    }
+    .upload-area input[type="file"] {
+      width: 100%;
+      background: rgba(255,255,255,0.08);
+      border: 1px dashed rgba(255,255,255,0.25);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      color: #ddd;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .upload-area input[type="file"]:hover {
+      border-color: #a18cd1;
+      background: rgba(161,140,209,0.1);
+    }
+    .btn-predict {
+      background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+      color: #1a1a2e;
+      border: none;
+      border-radius: 50px;
+      padding: 0.75rem 2.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 0.5rem;
+    }
+    .btn-predict:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(161,140,209,0.5);
+    }
+    .btn-predict:active { transform: translateY(0); }
+
+    /* ── Error Banner ── */
+    .error-banner {
+      background: rgba(220, 50, 50, 0.2);
+      border: 1px solid rgba(220, 50, 50, 0.5);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      color: #ff8a8a;
+      width: 100%;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    /* ── Results Section ── */
+    .results-section h2 {
+      font-size: 1.4rem;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .image-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .image-card span {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #aaa;
+      font-weight: 600;
+    }
+    .image-card img {
+      width: 100%;
+      max-width: 150px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.12);
+      image-rendering: pixelated;  /* keep crisp pixel art look */
+      transition: transform 0.2s;
+    }
+    .image-card img:hover { transform: scale(1.1); }
+
+    /* ── Prediction Badge ── */
+    .prediction-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background: linear-gradient(135deg, rgba(161,140,209,0.25), rgba(251,194,235,0.15));
+      border: 1px solid rgba(161,140,209,0.4);
+      border-radius: 14px;
+      padding: 1.2rem 2rem;
+    }
+    .digit-badge {
+      font-size: 3rem;
+      font-weight: 900;
+      background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+      text-align: center;
+    }
+    .prediction-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .prediction-info .label {
+      font-size: 0.8rem;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .prediction-info .class-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+    .prediction-info .confidence {
+      font-size: 0.85rem;
+      color: #a18cd1;
+      margin-top: 0.2rem;
+    }
+
+    /* ── Pipeline Flow ── */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: #777;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .pipeline-step {
+      background: rgba(255,255,255,0.06);
+      border-radius: 20px;
+      padding: 0.3rem 0.8rem;
+      color: #bbb;
+    }
+    .pipeline-arrow { color: #a18cd1; font-weight: bold; }
+
+    /* ── Footer ── */
+    footer {
+      color: #555;
+      font-size: 0.8rem;
+      margin-top: auto;
+      text-align: center;
+    }
+
+    /* Keep track of active dataset for JS state */
+    #active-dataset { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Set initial state from server -->
+  <span id="active-dataset">{{ active_tab | default('mnist') }}</span>
+
+  <!-- Header -->
+  <header>
+    <h1>🧠 DL Image Pipeline</h1>
+    <p>Denoising · Classification · Multi-Dataset Support</p>
+  </header>
+
+  <!-- Upload Card with Tabs -->
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn" data-target="mnist-form" id="tab-mnist">📊 MNIST (Digits)</button>
+      <button class="tab-btn" data-target="cifar-form" id="tab-cifar">🖼️ CIFAR-10 (Objects)</button>
+    </div>
+
+    {% if error %}
+      <div class="error-banner" style="margin-bottom: 1rem;">⚠️ {{ error }}</div>
+    {% endif %}
+
+    <!-- MNIST Form -->
+    <form id="mnist-form" action="/predict" method="POST" enctype="multipart/form-data" class="upload-area">
+      <input type="hidden" name="dataset" value="mnist">
+      <label for="mnist-input">Upload a handwritten digit (PNG / JPG)</label>
+      <span class="upload-desc">Images will be converted to grayscale, inverted, and resized to 28x28.</span>
+      <input id="mnist-input" type="file" name="image" accept="image/*" required />
+      <button type="submit" class="btn-predict">🚀 Run MNIST Pipeline</button>
+    </form>
+
+    <!-- CIFAR Form -->
+    <form id="cifar-form" action="/predict" method="POST" enctype="multipart/form-data" class="upload-area">
+      <input type="hidden" name="dataset" value="cifar">
+      <label for="cifar-input">Upload an object photo (PNG / JPG)</label>
+      <span class="upload-desc">Supported classes: Airplane, Auto, Bird, Cat, Deer, Dog, Frog, Horse, Ship, Truck. Resized to 32x32 RGB.</span>
+      <input id="cifar-input" type="file" name="image" accept="image/*" required />
+      <button type="submit" class="btn-predict">🚀 Run CIFAR Pipeline</button>
+    </form>
+  </div>
+
+  <!-- Results Card (only shown after prediction) -->
+  {% if predicted_class is defined and predicted_class %}
+  <div class="card results-section">
+    <h2>Pipeline Results ({{ active_tab | upper }})</h2>
+
+    <!-- Three output images -->
+    <div class="image-grid">
+      <div class="image-card">
+        <span>📷 Original</span>
+        <img src="{{ original_img }}" alt="Original uploaded image" />
+      </div>
+      <div class="image-card">
+        <span>🌫️ Noisy</span>
+        <img src="{{ noisy_img }}" alt="Noisy version of the image" />
+      </div>
+      <div class="image-card">
+        <span>✨ Denoised</span>
+        <img src="{{ denoised_img }}" alt="Denoised output from autoencoder" />
+      </div>
+    </div>
+
+    <!-- Predicted class -->
+    <div class="prediction-banner">
+      <div class="digit-badge">{{ predicted_class }}</div>
+      <div class="prediction-info">
+        <span class="label">Prediction</span>
+        <span class="class-name">{{ class_label }}</span>
+        <span class="confidence">Confidence: {{ confidence }}%</span>
+      </div>
+    </div>
+
+    <!-- Pipeline flow legend -->
+    <div class="pipeline">
+      <span class="pipeline-step">📥 Upload</span>
+      <span class="pipeline-arrow">→</span>
+      <span class="pipeline-step">🌫️ Add Noise</span>
+      <span class="pipeline-arrow">→</span>
+      <span class="pipeline-step">🔮 Autoencoder ({{ active_tab | upper }})</span>
+      <span class="pipeline-arrow">→</span>
+      <span class="pipeline-step">🧠 CNN ({{ active_tab | upper }})</span>
+      <span class="pipeline-arrow">→</span>
+      <span class="pipeline-step">✅ Result</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <footer>
+    DL ESE Project · Autoencoder + CNN Pipeline · TensorFlow / Keras / Flask
+  </footer>
+
+  <script>
+    // Tab Switching Logic
+    const tabs = document.querySelectorAll('.tab-btn');
+    const forms = document.querySelectorAll('.upload-area');
+    
+    // Read the active dataset selected from server (or default to mnist)
+    const activeDataset = document.getElementById('active-dataset').innerText.trim() || 'mnist';
+
+    function switchTab(targetId) {
+      // Deactivate all
+      tabs.forEach(tab => tab.classList.remove('active'));
+      forms.forEach(form => form.classList.remove('active'));
+
+      // Activate selected
+      const selectedTab = document.querySelector(`[data-target="${targetId}"]`);
+      const selectedForm = document.getElementById(targetId);
+      
+      if(selectedTab && selectedForm) {
+        selectedTab.classList.add('active');
+        selectedForm.classList.add('active');
+      }
+    }
+
+    // Set initial tab state
+    switchTab(`${activeDataset}-form`);
+
+    // Add click listeners
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchTab(tab.getAttribute('data-target'));
+      });
+    });
+  </script>
+</body>
+</html>

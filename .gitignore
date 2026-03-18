@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Specific
+*.npy
+static/images/original_*.png
+static/images/noisy_*.png
+static/images/denoised_*.png
+
+# Mac
+.DS_Store

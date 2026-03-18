@@ -1,0 +1,6 @@
+# Cloud optimized dependencies
+tensorflow-cpu>=2.18.0
+flask>=3.1.0
+pillow>=11.0
+numpy>=2.0
+gunicorn>=23.0.0
