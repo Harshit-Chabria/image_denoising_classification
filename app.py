@@ -31,33 +31,27 @@ app = Flask(__name__)
 STATIC_FOLDER = os.path.join("static", "images")
 os.makedirs(STATIC_FOLDER, exist_ok=True)
 
+# Limit TensorFlow CPU threading to reduce RAM footprint on 512MB free tier
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 # ──────────────────────────────────────────────
-# LOAD TRAINED MODELS AT STARTUP
+# LAZY-LOAD TRAINED MODELS (Saves Memory)
 # ──────────────────────────────────────────────
-print("[INFO] Loading trained models...")
+# We don't load all 4 models at startup anymore to prevent OOM crashes.
+# We hold them in a dictionary only when needed.
+MODEL_CACHE = {}
 
-# --- MNIST Models ---
-if not os.path.exists("autoencoder.keras"):
-    raise FileNotFoundError("autoencoder.keras not found! Run 'python train_autoencoder.py' first.")
-if not os.path.exists("classifier.keras"):
-    raise FileNotFoundError("classifier.keras not found! Run 'python train_classifier.py' first.")
-
-autoencoder_mnist = tf.keras.models.load_model("autoencoder.keras")
-classifier_mnist  = tf.keras.models.load_model("classifier.keras")
-
-# --- CIFAR-10 Models ---
-if not os.path.exists("cifar_autoencoder.keras"):
-    raise FileNotFoundError("cifar_autoencoder.keras not found! Run 'python train_cifar_autoencoder.py' first.")
-if not os.path.exists("cifar_classifier.keras"):
-    raise FileNotFoundError("cifar_classifier.keras not found! Run 'python train_cifar_classifier.py' first.")
-
-autoencoder_cifar = tf.keras.models.load_model("cifar_autoencoder.keras")
-classifier_cifar  = tf.keras.models.load_model("cifar_classifier.keras")
+def get_model(model_name, filename):
+    if model_name not in MODEL_CACHE:
+        print(f"[INFO] Lazy-loading {filename} into memory...")
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"{filename} not found!")
+        MODEL_CACHE[model_name] = tf.keras.models.load_model(filename)
+    return MODEL_CACHE[model_name]
 
 # CIFAR-10 Class labels mapping
 CIFAR_LABELS = ["Airplane", "Automobile", "Bird", "Cat", "Deer", "Dog", "Frog", "Horse", "Ship", "Truck"]
-
-print("[INFO] All 4 Models loaded successfully.")
 
 # ──────────────────────────────────────────────
 # HELPER: Save a (28, 28, 1) numpy array as PNG
@@ -141,7 +135,11 @@ def predict():
 
     # --- 4. Denoise with Autoencoder ---
     print(f"[INFO] Running {dataset} autoencoder denoising...")
-    ae_model = autoencoder_mnist if dataset == "mnist" else autoencoder_cifar
+    if dataset == "mnist":
+        ae_model = get_model("autoencoder_mnist", "autoencoder.keras")
+    else:
+        ae_model = get_model("autoencoder_cifar", "cifar_autoencoder.keras")
+        
     denoised_array = ae_model.predict(noisy_array, verbose=0)
 
     denoised_path = os.path.join(STATIC_FOLDER, f"denoised_{uid}.png")
@@ -149,7 +147,11 @@ def predict():
 
     # --- 5. Classify with CNN ---
     print(f"[INFO] Running {dataset} CNN classifier...")
-    clf_model = classifier_mnist if dataset == "mnist" else classifier_cifar
+    if dataset == "mnist":
+        clf_model = get_model("classifier_mnist", "classifier.keras")
+    else:
+        clf_model = get_model("classifier_cifar", "cifar_classifier.keras")
+        
     predictions = clf_model.predict(denoised_array, verbose=0)
     
     pred_idx = int(np.argmax(predictions[0]))
